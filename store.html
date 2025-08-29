@@ -1,166 +1,229 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ArtaVista Store</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>ArtaVista — Store (Firebase)</title>
+
+<!-- Firebase compat libs -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
+
 <style>
-    body { font-family: Arial, sans-serif; padding: 20px; background: #f4f4f4; color: #333; }
-    .dark-mode { background: #222; color: #fff; }
-    header { display: flex; justify-content: space-between; align-items: center; }
-    .product { border: 1px solid #ccc; padding: 10px; margin: 10px; border-radius: 8px; display: inline-block; width: 200px; background: white; }
-    .product img { width: 100%; height: 150px; object-fit: cover; }
-    .cart { margin-top: 20px; padding: 15px; background: white; border-radius: 8px; }
-    button { padding: 8px 12px; margin-top: 8px; cursor: pointer; }
+:root{--bg:#f7fafc;--card:#fff;--accent:#6c5ce7;--muted:#6b7280}
+body{font-family:Inter,system-ui,Arial;margin:0;background:var(--bg);color:#0f172a}
+header{background:linear-gradient(90deg,var(--accent),#8e7bff);color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center}
+.container{max-width:1100px;margin:18px auto;padding:16px}
+.grid{display:grid;grid-template-columns:2fr 1fr;gap:16px}
+.card{background:var(--card);border-radius:12px;padding:14px;box-shadow:0 6px 20px rgba(12,18,40,.06)}
+.search{display:flex;gap:10px;margin-bottom:12px}
+input[type=text],select{padding:10px;border-radius:8px;border:1px solid #e6eef8}
+.catalog{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+.prod{border-radius:10px;border:1px solid #eef2ff;overflow:hidden;background:linear-gradient(180deg,#fff,#fbfdff);display:flex;flex-direction:column}
+.prod img{width:100%;height:140px;object-fit:cover;background:#eef2ff}
+.meta{padding:10px;display:grid;gap:6px}
+.btn{padding:8px 12px;border-radius:10px;border:0;background:var(--accent);color:#fff;cursor:pointer}
+.cart-list{display:flex;flex-direction:column;gap:8px}
+.cart-item{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:8px;border-radius:8px;border:1px solid #f1f5f9}
+.small{font-size:13px;color:var(--muted)}
+.total{font-weight:800;margin-top:8px}
 </style>
 </head>
 <body>
 <header>
-    <h1>ArtaVista Store</h1>
-    <button id="darkModeToggle">🌙 Toggle Dark Mode</button>
+  <h1>ArtaVista — Store</h1>
+  <div><a href="manager.html" style="text-decoration:none"><button class="btn" style="background:#fff;color:var(--accent)">Open Manager</button></a></div>
 </header>
 
-<input type="text" id="searchBar" placeholder="Search products..." style="width: 100%; padding: 10px; margin: 10px 0;">
+<main class="container">
+  <div class="grid">
+    <section class="card">
+      <div class="search">
+        <input id="q" placeholder="Search items..." />
+        <select id="filterType"><option value="">All types</option><option>Artwork</option><option>Slime</option><option>DIY Kit</option></select>
+        <button class="btn" id="searchBtn">Search</button>
+      </div>
 
-<div id="products"></div>
+      <div id="catalog" class="catalog"></div>
+      <div id="emptyHint" class="small muted" style="margin-top:12px">Products will appear here when the manager adds them.</div>
+    </section>
 
-<div class="cart">
-    <h2>Your Cart</h2>
-    <ul id="cartList"></ul>
-    <p><strong>Total: ₹<span id="total">0</span></strong></p>
-    <button id="checkoutBtn">Checkout</button>
-</div>
+    <aside class="card">
+      <h3>Your Account</h3>
+      <input id="custName" placeholder="Full name" />
+      <input id="custPhone" placeholder="Phone" style="margin-top:8px" />
+      <textarea id="custAddress" rows="3" placeholder="Delivery address" style="margin-top:8px;padding:8px;border-radius:8px;border:1px solid #e6eef8"></textarea>
+      <button class="btn" id="saveAccount" style="margin-top:8px">Save Account</button>
+
+      <h3 style="margin-top:14px">Cart</h3>
+      <div id="cartList" class="cart-list"></div>
+      <div class="total" id="totalLabel">Total: ₹0.00 | Payment: Cash on Delivery</div>
+      <div style="margin-top:10px;display:flex;gap:8px">
+        <button class="btn" id="checkoutBtn">Place Order (COD)</button>
+        <button class="btn" id="clearCartBtn" style="background:#ef4444">Clear Cart</button>
+      </div>
+      <div style="margin-top:12px" class="small muted">Orders appear in the Manager dashboard in realtime.</div>
+    </aside>
+  </div>
+</main>
 
 <script>
-let products = JSON.parse(localStorage.getItem('products')) || [];
+/* ---------- PASTE THE SAME FIREBASE CONFIG HERE ---------- */
+const firebaseConfig = {
+  apiKey: "REPLACE_ME",
+  authDomain: "REPLACE_ME",
+  projectId: "REPLACE_ME",
+  storageBucket: "REPLACE_ME",
+  messagingSenderId: "REPLACE_ME",
+  appId: "REPLACE_ME"
+};
+/* -------------------------------------------------------- */
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const storage = firebase.storage();
+
+const KEY_USER = 'lastUser';
+const catalogEl = document.getElementById('catalog');
+const qEl = document.getElementById('q');
+const filterEl = document.getElementById('filterType');
+const cartListEl = document.getElementById('cartList');
+const totalLabel = document.getElementById('totalLabel');
+
+let products = [];
 let cart = [];
 
-// Load products into store
-function displayProducts() {
-    const container = document.getElementById('products');
-    container.innerHTML = '';
-
-    if (products.length === 0) {
-        container.innerHTML = '<p>No products available. Add products from Manager.</p>';
-        return;
-    }
-
-    products.forEach((p, index) => {
-        const div = document.createElement('div');
-        div.className = 'product';
-        div.innerHTML = `
-            <img src="${p.image || ''}" alt="Product Image">
-            <h3>${p.name}</h3>
-            <p>₹${p.price}</p>
-            <button onclick="addToCart(${index})">Add to Cart</button>
-        `;
-        container.appendChild(div);
-    });
+/* Realtime products listener */
+function startProductsListener(){
+  db.collection('products').orderBy('createdAt','desc').onSnapshot(snap => {
+    products = [];
+    snap.forEach(doc => { const p = doc.data(); p.id = doc.id; products.push(p); });
+    renderCatalog();
+    document.getElementById('emptyHint').style.display = products.length ? 'none' : 'block';
+  });
 }
 
-// Add to cart function
-function addToCart(index) {
-    const product = products[index];
-    const existing = cart.find(item => item.name === product.name);
-
-    if (existing) {
-        existing.qty++;
-    } else {
-        cart.push({ name: product.name, price: product.price, qty: 1 });
-    }
-
-    updateCart();
+/* Render catalog */
+function renderCatalog(){
+  const q = (qEl.value||'').trim().toLowerCase();
+  const type = filterEl.value;
+  catalogEl.innerHTML = '';
+  const list = products.filter(p=>{
+    if(type && p.category !== type) return false;
+    if(q && !p.name.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  if(list.length === 0){ catalogEl.innerHTML = '<div class="small muted">No items found.</div>'; return; }
+  list.forEach(p => {
+    const div = document.createElement('div'); div.className='prod';
+    div.innerHTML = `<img src="${p.image||''}" alt="${escapeHtml(p.name)}"><div class="meta">
+      <div style="display:flex;justify-content:space-between;align-items:center"><div><b>${escapeHtml(p.name)}</b></div><div class="small">${escapeHtml(p.category)}</div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center"><div class="price">₹${Number(p.price).toFixed(2)}</div><div><button data-add="${p.id}" class="btn">Add</button></div></div>
+    </div>`;
+    catalogEl.appendChild(div);
+  });
 }
 
-// Update cart display
-function updateCart() {
-    const cartList = document.getElementById('cartList');
-    cartList.innerHTML = '';
-    let total = 0;
-
-    cart.forEach((item, i) => {
-        total += item.price * item.qty;
-        const li = document.createElement('li');
-        li.innerHTML = `${item.name} x ${item.qty} - ₹${item.price * item.qty} 
-            <button onclick="removeFromCart(${i})">Remove</button>`;
-        cartList.appendChild(li);
-    });
-
-    document.getElementById('total').innerText = total;
-}
-
-// Remove item from cart
-function removeFromCart(i) {
-    cart.splice(i, 1);
-    updateCart();
-}
-
-// Checkout and save order
-document.getElementById('checkoutBtn').addEventListener('click', () => {
-    if (cart.length === 0) {
-        alert('Cart is empty!');
-        return;
-    }
-
-    const name = prompt('Enter your name:');
-    const address = prompt('Enter your address:');
-    const phone = prompt('Enter your phone number:');
-
-    if (!name || !address || !phone) {
-        alert('All fields are required!');
-        return;
-    }
-
-    const order = {
-        customer: { name, address, phone },
-        items: cart,
-        total: document.getElementById('total').innerText
-    };
-
-    const orders = JSON.parse(localStorage.getItem('orders')) || [];
-    orders.push(order);
-    localStorage.setItem('orders', JSON.stringify(orders));
-
-    alert('Order placed successfully!');
-
-    // Printable invoice
-    let invoice = `<h1>Invoice</h1>
-                   <p>Name: ${name}</p>
-                   <p>Address: ${address}</p>
-                   <p>Phone: ${phone}</p>
-                   <h3>Items:</h3>
-                   <ul>`;
-    cart.forEach(item => {
-        invoice += `<li>${item.name} x ${item.qty} - ₹${item.price * item.qty}</li>`;
-    });
-    invoice += `</ul><p><strong>Total: ₹${document.getElementById('total').innerText}</strong></p>`;
-    const w = window.open('', 'Invoice');
-    w.document.write(invoice);
-    w.print();
-
-    cart = [];
-    updateCart();
+/* Add to cart */
+catalogEl.addEventListener('click', e=>{
+  const btn = e.target.closest('[data-add]'); if(!btn) return;
+  const id = btn.dataset.add; const p = products.find(x=>x.id===id); if(!p) return;
+  const existing = cart.find(c=>c.id===id);
+  if(existing) existing.qty++; else cart.push({ id: p.id, name: p.name, price: p.price, category: p.category, qty: 1 });
+  renderCart();
 });
 
-// Search filter
-document.getElementById('searchBar').addEventListener('input', (e) => {
-    const value = e.target.value.toLowerCase();
-    products = JSON.parse(localStorage.getItem('products')) || [];
-    products = products.filter(p => p.name.toLowerCase().includes(value));
-    displayProducts();
-});
-
-// Dark Mode toggle
-document.getElementById('darkModeToggle').addEventListener('click', () => {
-    document.body.classList.toggle('dark-mode');
-    localStorage.setItem('store_dark', document.body.classList.contains('dark-mode'));
-});
-
-if (localStorage.getItem('store_dark') === 'true') {
-    document.body.classList.add('dark-mode');
+/* Render cart */
+function renderCart(){
+  cartListEl.innerHTML = '';
+  let sum = 0;
+  cart.forEach((c, idx) => {
+    sum += Number(c.price || 0) * c.qty;
+    const item = document.createElement('div'); item.className='cart-item';
+    item.innerHTML = `<div><b>${escapeHtml(c.name)}</b><div class="small">${escapeHtml(c.category)}</div></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button data-dec="${idx}">-</button><div>${c.qty}</div><button data-inc="${idx}">+</button>
+        <div style="width:70px;text-align:right">₹${(c.price*c.qty).toFixed(2)}</div>
+        <button data-rm="${idx}" style="background:#ef4444;color:#fff;border:0;padding:6px;border-radius:6px">✕</button>
+      </div>`;
+    cartListEl.appendChild(item);
+  });
+  totalLabel.textContent = `Total: ₹${sum.toFixed(2)} | Payment: Cash on Delivery`;
+  localStorage.setItem('cart', JSON.stringify(cart));
 }
 
-displayProducts();
+/* Cart controls */
+cartListEl.addEventListener('click', e=>{
+  const dec = e.target.closest('[data-dec]'); if(dec){ const i = Number(dec.dataset.dec); if(cart[i].qty>1) cart[i].qty--; else if(confirm('Remove item?')) cart.splice(i,1); renderCart(); return; }
+  const inc = e.target.closest('[data-inc]'); if(inc){ cart[Number(inc.dataset.inc)].qty++; renderCart(); return; }
+  const rm = e.target.closest('[data-rm]'); if(rm){ cart.splice(Number(rm.dataset.rm),1); renderCart(); return; }
+});
+
+/* Clear cart */
+document.getElementById('clearCartBtn').addEventListener('click', ()=>{ if(confirm('Clear cart?')){ cart=[]; renderCart(); } });
+
+/* Save account */
+document.getElementById('saveAccount').addEventListener('click', ()=>{
+  const name = document.getElementById('custName').value.trim();
+  const phone = document.getElementById('custPhone').value.trim();
+  const address = document.getElementById('custAddress').value.trim();
+  if(!name || !phone || !address){ alert('Please fill Name, Phone and Address'); return; }
+  localStorage.setItem(KEY_USER, JSON.stringify({ name, phone, address }));
+  alert('Account saved locally');
+});
+
+/* Checkout */
+document.getElementById('checkoutBtn').addEventListener('click', async ()=>{
+  const user = JSON.parse(localStorage.getItem(KEY_USER) || 'null');
+  if(!user){ alert('Please save your account first'); return; }
+  if(cart.length === 0){ alert('Cart is empty'); return; }
+  const total = cart.reduce((s,i)=>s + (Number(i.price)||0)*i.qty, 0);
+  const order = {
+    orderId: 'ord_' + Math.random().toString(36).slice(2,10),
+    name: user.name, phone: user.phone, address: user.address,
+    items: cart, total,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  try {
+    await db.collection('orders').add(order);
+    cart = []; renderCart();
+    openInvoiceWindow(order);
+    alert('Order placed — Cash on Delivery');
+  } catch(err){ console.error(err); alert('Order failed: '+err.message); }
+});
+
+/* Invoice window */
+function openInvoiceWindow(order){
+  const w = window.open('','_blank','width=700,height=800');
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Invoice</title>
+    <style>body{font-family:Arial;padding:20px}table{width:100%;border-collapse:collapse}td,th{padding:8px;border-bottom:1px solid #ddd}</style></head><body>
+    <h2>ArtaVista Invoice</h2><div><b>Order ID:</b> ${escapeHtml(order.orderId)}</div><div><b>Date:</b> ${new Date().toLocaleString()}</div>
+    <hr><div><b>Buyer:</b> ${escapeHtml(order.name)}<br>${escapeHtml(order.address)}<br>${escapeHtml(order.phone)}</div>
+    <h3>Items</h3><table><thead><tr><th>Item</th><th>Qty</th><th>Price</th></tr></thead><tbody>
+    ${order.items.map(it=>`<tr><td>${escapeHtml(it.name)}</td><td>${it.qty}</td><td>₹${(it.price*it.qty).toFixed(2)}</td></tr>`).join('')}
+    </tbody></table><div style="text-align:right;font-weight:800;margin-top:10px">Total: ₹${order.total.toFixed(2)}</div>
+    <div style="margin-top:12px">Payment: Cash on Delivery</div><div style="margin-top:14px"><button onclick="window.print()">Print</button></div>
+    </body></html>`;
+  w.document.write(html); w.document.close();
+}
+
+/* Helpers */
+function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c])); }
+
+/* init */
+document.getElementById('searchBtn').addEventListener('click', renderCatalog);
+qEl.addEventListener('keydown', e=>{ if(e.key==='Enter') renderCatalog(); });
+
+(function init(){
+  cart = JSON.parse(localStorage.getItem('cart') || '[]');
+  const lastUser = JSON.parse(localStorage.getItem(KEY_USER) || 'null');
+  if(lastUser){ document.getElementById('custName').value = lastUser.name; document.getElementById('custPhone').value = lastUser.phone; document.getElementById('custAddress').value = lastUser.address; }
+  renderCart();
+  startProductsListener();
+})();
 </script>
 </body>
 </html>
+
+
