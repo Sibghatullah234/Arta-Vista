@@ -1,218 +1,247 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ArtaVista Manager</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>ArtaVista — Manager (Firebase)</title>
+
+<!-- Firebase compat libs -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
+
 <style>
-    body {
-        font-family: 'Poppins', sans-serif;
-        margin: 0;
-        padding: 0;
-        background: #f5f5f5;
-        color: #333;
-        transition: background 0.3s, color 0.3s;
-    }
-    header {
-        background: #4a148c;
-        color: #fff;
-        padding: 15px;
-        text-align: center;
-        font-size: 1.5rem;
-        position: sticky;
-        top: 0;
-        z-index: 10;
-    }
-    .container {
-        max-width: 1200px;
-        margin: 20px auto;
-        padding: 20px;
-    }
-    .section-title {
-        font-size: 1.3rem;
-        margin-bottom: 10px;
-    }
-    .card {
-        background: #fff;
-        padding: 15px;
-        border-radius: 10px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-        margin-bottom: 20px;
-    }
-    input, select, button {
-        width: 100%;
-        padding: 10px;
-        margin: 8px 0;
-        border: 1px solid #ccc;
-        border-radius: 6px;
-        font-size: 1rem;
-    }
-    button {
-        background: #4a148c;
-        color: #fff;
-        cursor: pointer;
-        font-weight: bold;
-    }
-    button:hover {
-        background: #6a1b9a;
-    }
-    .product-list img {
-        width: 60px;
-        height: 60px;
-        object-fit: cover;
-        border-radius: 6px;
-    }
-    .product-list table, .order-list table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-    th, td {
-        padding: 10px;
-        border-bottom: 1px solid #ddd;
-        text-align: left;
-    }
-    .dark-mode {
-        background: #121212;
-        color: #fff;
-    }
-    .dark-mode header {
-        background: #1f1f1f;
-    }
-    .dark-mode .card {
-        background: #1e1e1e;
-        color: #fff;
-    }
-    .dark-toggle {
-        position: absolute;
-        top: 15px;
-        right: 15px;
-        background: #fff;
-        color: #4a148c;
-        border: none;
-        padding: 8px 12px;
-        border-radius: 6px;
-        cursor: pointer;
-    }
+:root{--bg:#f6f8fb;--card:#fff;--accent:#6c5ce7;--muted:#6b7280}
+body{font-family:Inter,system-ui,Arial;margin:0;background:var(--bg);color:#0f172a}
+header{background:linear-gradient(90deg,var(--accent),#8e7bff);color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center}
+header h1{margin:0;font-size:18px}
+.container{max-width:1100px;margin:18px auto;padding:16px}
+.grid{display:grid;grid-template-columns:1fr 420px;gap:16px}
+.card{background:var(--card);border-radius:12px;padding:14px;box-shadow:0 6px 20px rgba(12,18,40,.06)}
+label{display:block;margin-top:8px;font-weight:600}
+input[type=text], input[type=number], select {width:100%;padding:10px;border-radius:8px;border:1px solid #e6eef8}
+input[type=file]{margin-top:8px}
+.btn{padding:9px 12px;border-radius:10px;border:0;background:var(--accent);color:#fff;cursor:pointer;margin-top:10px}
+.small{font-size:13px;color:var(--muted)}
+table{width:100%;border-collapse:collapse;margin-top:8px}
+th,td{padding:8px;border-bottom:1px solid #eef2ff;text-align:left}
+img.thumb{width:80px;height:56px;object-fit:cover;border-radius:6px}
+.order-row{padding:8px;border-bottom:1px solid #eef2ff}
+.dark-mode{background:#0b1220;color:#e6eef8}
+.dark-mode .card{background:#121318}
+@media(max-width:980px){.grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <header>
-    ArtaVista Manager
-    <button class="dark-toggle" onclick="toggleDarkMode()">Toggle Dark Mode</button>
+  <h1>ArtaVista — Manager</h1>
+  <div>
+    <button id="toggleDark" class="btn" style="background:#111">Toggle Dark</button>
+    <a href="store.html" target="_blank" style="text-decoration:none;margin-left:8px"><button class="btn" style="background:#fff;color:var(--accent)">Open Store</button></a>
+  </div>
 </header>
-<div class="container">
-    <!-- Add Product -->
-    <div class="card">
-        <h2 class="section-title">Add New Product</h2>
-        <input type="text" id="productName" placeholder="Product Name">
-        <input type="number" id="productPrice" placeholder="Price">
-        <select id="productCategory">
-            <option value="Artwork">Artwork</option>
-            <option value="Slime">Slime</option>
-            <option value="DIY Kit">DIY Kit</option>
-        </select>
-        <input type="file" id="productImage" accept="image/*">
-        <button onclick="addProduct()">Add Product</button>
-    </div>
 
-    <!-- Product List -->
-    <div class="card product-list">
-        <h2 class="section-title">Product List</h2>
-        <table id="productTable">
-            <thead>
-                <tr><th>Image</th><th>Name</th><th>Price</th><th>Category</th><th>Action</th></tr>
-            </thead>
-            <tbody></tbody>
+<main class="container">
+  <div class="grid">
+    <!-- Left: Products list -->
+    <section class="card">
+      <h2 style="margin:0 0 8px 0">Products</h2>
+      <div id="productsArea">
+        <table aria-hidden="false">
+          <thead><tr><th>Image</th><th>Name</th><th>Category</th><th>Price</th><th>Actions</th></tr></thead>
+          <tbody id="productsBody"></tbody>
         </table>
-    </div>
+      </div>
+    </section>
 
-    <!-- Orders -->
-    <div class="card order-list">
-        <h2 class="section-title">Orders</h2>
-        <table id="orderTable">
-            <thead>
-                <tr><th>Customer</th><th>Phone</th><th>Address</th><th>Items</th><th>Total</th></tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-    </div>
-</div>
+    <!-- Right: Add/Edit + Orders -->
+    <aside>
+      <section class="card">
+        <h2 style="margin:0 0 8px 0">Add / Edit Product</h2>
+        <label for="p_name">Name</label>
+        <input id="p_name" type="text" placeholder="e.g., Sunset Canvas">
+        <label for="p_category">Category</label>
+        <select id="p_category"><option>Artwork</option><option>Slime</option><option>DIY Kit</option></select>
+        <label for="p_price">Price (₹)</label>
+        <input id="p_price" type="number" placeholder="499">
+        <label for="p_image">Image (upload)</label>
+        <input id="p_image" type="file" accept="image/*">
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button id="saveBtn" class="btn">Save Product</button>
+          <button id="resetBtn" class="btn" style="background:#94a3b8">Reset</button>
+        </div>
+        <div class="small" style="margin-top:8px">Images upload to Firebase Storage; Firestore stores the image URL.</div>
+      </section>
+
+      <section class="card" style="margin-top:12px">
+        <h2 style="margin:0 0 8px 0">Orders (Realtime)</h2>
+        <div id="ordersContainer" style="max-height:420px;overflow:auto"></div>
+        <div class="small" style="margin-top:8px">Orders saved to Firestore collection <code>orders</code>.</div>
+      </section>
+    </aside>
+  </div>
+</main>
 
 <script>
-    let products = JSON.parse(localStorage.getItem('products')) || [];
-    let orders = JSON.parse(localStorage.getItem('orders')) || [];
+/* ---------- PASTE YOUR FIREBASE CONFIG HERE ---------- */
+const firebaseConfig = {
+  apiKey: "REPLACE_ME",
+  authDomain: "REPLACE_ME",
+  projectId: "REPLACE_ME",
+  storageBucket: "REPLACE_ME",
+  messagingSenderId: "REPLACE_ME",
+  appId: "REPLACE_ME"
+};
+/* ---------------------------------------------------- */
 
-    const productTable = document.querySelector('#productTable tbody');
-    const orderTable = document.querySelector('#orderTable tbody');
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const storage = firebase.storage();
 
-    function renderProducts() {
-        productTable.innerHTML = '';
-        products.forEach((p, index) => {
-            productTable.innerHTML += `
-                <tr>
-                    <td><img src="${p.image}" alt="img"></td>
-                    <td>${p.name}</td>
-                    <td>₹${p.price}</td>
-                    <td>${p.category}</td>
-                    <td><button onclick="deleteProduct(${index})">Delete</button></td>
-                </tr>`;
-        });
+/* UI refs */
+const productsBody = document.getElementById('productsBody');
+const ordersContainer = document.getElementById('ordersContainer');
+const saveBtn = document.getElementById('saveBtn');
+const resetBtn = document.getElementById('resetBtn');
+const nameInput = document.getElementById('p_name');
+const categoryInput = document.getElementById('p_category');
+const priceInput = document.getElementById('p_price');
+const imageInput = document.getElementById('p_image');
+const toggleDark = document.getElementById('toggleDark');
+
+let editingId = null;
+
+/* Dark mode state */
+if(localStorage.getItem('manager_dark')==='1'){ document.body.classList.add('dark-mode'); }
+toggleDark.addEventListener('click', ()=>{
+  document.body.classList.toggle('dark-mode');
+  localStorage.setItem('manager_dark', document.body.classList.contains('dark-mode')?'1':'0');
+});
+
+/* helpers */
+function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function uid(p='id_'){ return p + Math.random().toString(36).slice(2); }
+
+/* reset form */
+function resetForm(){ editingId = null; nameInput.value=''; categoryInput.value='Artwork'; priceInput.value=''; imageInput.value=''; }
+
+/* upload image -> returns download URL */
+function uploadImage(file){
+  if(!file) return Promise.resolve('');
+  const path = `product_images/${Date.now()}_${file.name}`;
+  const ref = storage.ref().child(path);
+  return ref.put(file).then(snap => snap.ref.getDownloadURL());
+}
+
+/* Save product */
+saveBtn.addEventListener('click', async ()=>{
+  const name = nameInput.value.trim(); const category = categoryInput.value; const price = Number(priceInput.value);
+  const file = imageInput.files[0];
+
+  if(!name || !price || (!file && !editingId)){ alert('Please provide name, price and image (for new product).'); return; }
+  saveBtn.disabled = true; saveBtn.textContent = 'Saving...';
+  try {
+    let imageURL = '';
+    if(file) imageURL = await uploadImage(file);
+
+    if(editingId){
+      const updateData = { name, category, price };
+      if(imageURL) updateData.image = imageURL;
+      await db.collection('products').doc(editingId).update(updateData);
+    } else {
+      await db.collection('products').add({ name, category, price, image: imageURL, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
     }
+    resetForm();
+  } catch(err){
+    console.error(err); alert('Save failed: '+err.message);
+  } finally {
+    saveBtn.disabled = false; saveBtn.textContent = 'Save Product';
+  }
+});
 
-    function renderOrders() {
-        orderTable.innerHTML = '';
-        orders.forEach(order => {
-            orderTable.innerHTML += `
-                <tr>
-                    <td>${order.name}</td>
-                    <td>${order.phone}</td>
-                    <td>${order.address}</td>
-                    <td>${order.items.map(i => i.name + ' (x' + i.qty + ')').join(', ')}</td>
-                    <td>₹${order.total}</td>
-                </tr>`;
-        });
-    }
+/* Reset */
+resetBtn.addEventListener('click', resetForm);
 
-    function addProduct() {
-        const name = document.getElementById('productName').value;
-        const price = document.getElementById('productPrice').value;
-        const category = document.getElementById('productCategory').value;
-        const imageFile = document.getElementById('productImage').files[0];
+/* Render product row */
+function renderProductRow(id, data){
+  const tr = document.createElement('tr');
+  tr.dataset.id = id;
+  tr.innerHTML = `
+    <td><img class="thumb" src="${data.image||''}" alt=""></td>
+    <td>${escapeHtml(data.name)}</td>
+    <td>${escapeHtml(data.category)}</td>
+    <td>₹${Number(data.price||0).toFixed(2)}</td>
+    <td>
+      <button onclick="editProduct('${id}')">Edit</button>
+      <button style="background:#ef4444;color:#fff;border:0;padding:6px;border-radius:6px" onclick="deleteProduct('${id}')">Delete</button>
+    </td>`;
+  return tr;
+}
 
-        if (!name || !price || !imageFile) {
-            alert('Please fill all fields and upload an image');
-            return;
-        }
+/* Realtime products listener */
+db.collection('products').orderBy('createdAt','desc').onSnapshot(snapshot=>{
+  productsBody.innerHTML = '';
+  snapshot.forEach(doc => { productsBody.appendChild(renderProductRow(doc.id, doc.data())); });
+});
 
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const newProduct = { name, price, category, image: e.target.result };
-            products.push(newProduct);
-            localStorage.setItem('products', JSON.stringify(products));
-            renderProducts();
-        }
-        reader.readAsDataURL(imageFile);
-    }
+/* Edit product */
+window.editProduct = async function(docId){
+  const doc = await db.collection('products').doc(docId).get();
+  if(!doc.exists){ alert('Not found'); return; }
+  const d = doc.data();
+  editingId = docId;
+  nameInput.value = d.name||''; categoryInput.value = d.category||'Artwork'; priceInput.value = d.price||'';
+  imageInput.value = ''; window.scrollTo({top:0,behavior:'smooth'});
+};
 
-    function deleteProduct(index) {
-        if(confirm('Delete this product?')) {
-            products.splice(index, 1);
-            localStorage.setItem('products', JSON.stringify(products));
-            renderProducts();
-        }
-    }
+/* Delete product */
+window.deleteProduct = async function(docId){
+  if(!confirm('Delete product?')) return;
+  try{ await db.collection('products').doc(docId).delete(); } catch(err){ console.error(err); alert('Delete failed'); }
+};
 
-    function toggleDarkMode() {
-        document.body.classList.toggle('dark-mode');
-        localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
-    }
+/* Realtime orders listener */
+db.collection('orders').orderBy('createdAt','desc').onSnapshot(snapshot=>{
+  ordersContainer.innerHTML = '';
+  snapshot.forEach(doc => {
+    const d = doc.data();
+    const wrap = document.createElement('div');
+    wrap.className = 'order-row';
+    const itemsList = (d.items||[]).map(it => `${escapeHtml(it.name)} x${it.qty||1}`).join(', ');
+    const created = d.createdAt && d.createdAt.seconds ? new Date(d.createdAt.seconds*1000).toLocaleString() : (d.when||'');
+    wrap.innerHTML = `<div><strong>${escapeHtml(d.name||d.customer?.name||'')}</strong> • ${created}</div>
+      <div class="small">${escapeHtml(d.phone||d.customer?.phone||'')}</div>
+      <div class="small">${escapeHtml(d.address||d.customer?.address||'')}</div>
+      <div style="margin-top:6px">${itemsList}</div>
+      <div style="margin-top:6px"><b>Total: ₹${Number(d.total||0).toFixed(2)}</b></div>
+      <div style="margin-top:6px"><button onclick="openInvoiceForOrder('${doc.id}')">Open Invoice</button></div>`;
+    ordersContainer.appendChild(wrap);
+  });
+});
 
-    if(localStorage.getItem('darkMode') === 'true') {
-        document.body.classList.add('dark-mode');
-    }
+/* Open invoice */
+window.openInvoiceForOrder = async function(orderDocId){
+  try{
+    const doc = await db.collection('orders').doc(orderDocId).get();
+    if(!doc.exists){ alert('Order not found'); return; }
+    const data = doc.data();
+    const items = data.items || [];
+    const created = data.createdAt && data.createdAt.seconds ? new Date(data.createdAt.seconds*1000).toLocaleString() : '';
+    const w = window.open('','_blank','width=700,height=800');
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Invoice</title><style>body{font-family:Arial;padding:20px}table{width:100%;border-collapse:collapse}td,th{padding:8px;border-bottom:1px solid #ddd}</style></head><body>
+      <h2>ArtaVista Invoice</h2><div><b>Order ID:</b> ${escapeHtml(data.orderId||doc.id)}</div><div><b>Date:</b> ${created}</div>
+      <hr/><div><b>Buyer:</b> ${escapeHtml(data.name||data.customer?.name||'')}</div><div>${escapeHtml(data.address||data.customer?.address||'')}</div><div>${escapeHtml(data.phone||data.customer?.phone||'')}</div>
+      <h3>Items</h3><table><thead><tr><th>Item</th><th>Qty</th><th>Price</th></tr></thead><tbody>
+      ${items.map(it=>`<tr><td>${escapeHtml(it.name)}</td><td>${it.qty||1}</td><td>₹${((it.price||0)*(it.qty||1)).toFixed(2)}</td></tr>`).join('')}
+      </tbody></table><div style="text-align:right;font-weight:800;margin-top:10px">Total: ₹${Number(data.total||0).toFixed(2)}</div><div style="margin-top:12px">Payment: Cash on Delivery</div>
+      <div style="margin-top:14px"><button onclick="window.print()">Print</button></div></body></html>`;
+    w.document.write(html); w.document.close();
+  } catch(err){ console.error(err); alert('Failed load invoice'); }
+};
 
-    renderProducts();
-    renderOrders();
+/* small helper */
+function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>\"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c])); }
 </script>
 </body>
 </html>
+
