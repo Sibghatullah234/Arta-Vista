@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Todo — Memory (Single HTML)</title>
+  <style>
+    :root{--bg:#f7fafc;--card:#ffffff;--muted:#6b7280;--primary:#4f46e5;--danger:#dc2626}
+    *{box-sizing:border-box}
+    body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:var(--bg);color:#111}
+    .container{max-width:900px;margin:28px auto;padding:18px}
+    header h1{margin:0;font-size:28px}
+    .card{background:var(--card);padding:14px;border-radius:10px;box-shadow:0 6px 18px rgba(16,24,40,0.06);}
+    form .row{display:flex;gap:8px}
+    input[type=text], textarea, .search{padding:10px;border:1px solid #e6e9ef;border-radius:8px;flex:1}
+    textarea{resize:vertical;min-height:54px}
+    button{border:0;padding:9px 12px;border-radius:8px;background:var(--primary);color:white;cursor:pointer}
+    button.ghost{background:transparent;color:var(--muted);border:1px solid #e6e9ef}
+    .actions{display:flex;gap:8px;align-items:center}
+    .list{margin-top:12px;display:grid;gap:10px}
+    .item{display:flex;gap:10px;align-items:flex-start;padding:10px;border-radius:8px;border:1px solid #f1f5f9;background:linear-gradient(180deg, rgba(255,255,255,0.6), rgba(255,255,255,0.4))}
+    .item .meta{flex:1}
+    .item h3{margin:0;font-size:16px}
+    .muted{color:var(--muted);font-size:12px}
+    .small{font-size:13px}
+    .controls{display:flex;gap:6px;flex-direction:column}
+    .controls button{padding:6px 8px;font-size:13px}
+    .done h3{text-decoration:line-through;color:#94a3b8}
+    footer{margin-top:14px;color:var(--muted);font-size:13px}
+    .filter-btn{padding:6px 10px;border-radius:8px;border:1px solid transparent;background:#f8fafc;color:var(--muted);cursor:pointer}
+    .filter-btn.active{background:rgba(79,70,229,0.12);color:var(--primary);border-color:rgba(79,70,229,0.12)}
+    @media (max-width:640px){.row{flex-direction:column}.actions{flex-direction:column;align-items:stretch}.controls{flex-direction:row}}
+    .topbar{display:flex;gap:8px;align-items:center;margin-top:10px}
+    input[type=file]{display:none}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="mb-3">
+      <h1>Todo — Memory</h1>
+      <p class="muted">Autosaves to your browser. Export/Import to move between devices.</p>
+    </header>
+
+    <section class="card" id="app">
+      <form id="addForm">
+        <div class="row">
+          <input id="title" type="text" placeholder="New todo title (required)" required />
+          <button type="submit">Add</button>
+        </div>
+        <div style="height:8px"></div>
+        <textarea id="desc" placeholder="Optional description"></textarea>
+        <div style="height:10px"></div>
+        <div class="topbar">
+          <input id="search" class="search" type="text" placeholder="Search todos..." />
+          <div class="actions" style="margin-left:auto">
+            <button type="button" id="btnAll" class="filter-btn active">All</button>
+            <button type="button" id="btnActive" class="filter-btn">Active</button>
+            <button type="button" id="btnCompleted" class="filter-btn">Completed</button>
+          </div>
+        </div>
+      </form>
+
+      <div style="height:14px"></div>
+
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+        <button id="exportBtn" class="ghost">Export JSON</button>
+        <label for="importFile" class="ghost" style="cursor:pointer;padding:8px;border-radius:8px">Import JSON
+          <input id="importFile" type="file" accept="application/json" />
+        </label>
+        <button id="clearBtn" style="margin-left:auto" class="ghost">Clear All</button>
+      </div>
+
+      <div id="list" class="list"></div>
+
+      <footer>
+        Tip: This stores data locally in your browser (localStorage). To sync across devices you need a server — I can add that if you want.
+      </footer>
+    </section>
+  </div>
+
+  <script>
+    (function(){
+      const STORAGE_KEY = 'todo_memory_html_v1';
+      const qs = (s) => document.querySelector(s);
+      const $title = qs('#title');
+      const $desc = qs('#desc');
+      const $form = qs('#addForm');
+      const $list = qs('#list');
+      const $search = qs('#search');
+      const $btnAll = qs('#btnAll');
+      const $btnActive = qs('#btnActive');
+      const $btnCompleted = qs('#btnCompleted');
+      const $export = qs('#exportBtn');
+      const $importFile = qs('#importFile');
+      const $clear = qs('#clearBtn');
+
+      let todos = [];
+      let filter = 'all';
+
+      function uid(){return Math.random().toString(36).slice(2,9)}
+
+      function load(){
+        try{
+          const raw = localStorage.getItem(STORAGE_KEY);
+          todos = raw ? JSON.parse(raw) : [];
+        }catch(e){console.error('load',e);todos=[]}
+      }
+      function save(){
+        try{localStorage.setItem(STORAGE_KEY, JSON.stringify(todos))}catch(e){console.error('save',e)}
+      }
+
+      function addTodo(title, desc){
+        const t = title.trim(); if(!t) return;
+        const item = {id: uid(), title: t, description: desc||'', done:false, createdAt: Date.now(), updatedAt: Date.now()};
+        todos.unshift(item); save(); render();
+      }
+
+      function removeTodo(id){ if(!confirm('Delete this todo?')) return; todos = todos.filter(x=>x.id!==id); save(); render(); }
+
+      function toggleDone(id){ todos = todos.map(x=> x.id===id ? {...x, done: !x.done, updatedAt: Date.now()} : x); save(); render(); }
+
+      function startEdit(id){
+        const item = todos.find(x=>x.id===id); if(!item) return;
+        const newTitle = prompt('Edit title', item.title);
+        if(newTitle===null) return; // cancelled
+        const newDesc = prompt('Edit description', item.description||'');
+        item.title = newTitle.trim() || item.title;
+        item.description = newDesc===null ? item.description : newDesc.trim();
+        item.updatedAt = Date.now();
+        save(); render();
+      }
+
+      function clearAll(){ if(!confirm('Clear ALL todos? This cannot be undone.')) return; todos = []; save(); render(); }
+
+      function exportJSON(){
+        const data = JSON.stringify(todos, null, 2);
+        const blob = new Blob([data], {type:'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'todos-'+new Date().toISOString().slice(0,19)+'.json'; a.click(); URL.revokeObjectURL(url);
+      }
+
+      function importJSON(file){
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try{
+            const parsed = JSON.parse(reader.result);
+            if(!Array.isArray(parsed)) throw new Error('Invalid format');
+            const imported = parsed.map(it => ({...it, id: it.id || uid()}));
+            const existingIds = new Set(todos.map(t=>t.id));
+            const filtered = imported.filter(i=>!existingIds.has(i.id));
+            todos = [...filtered, ...todos]; save(); render();
+            alert('Imported '+filtered.length+' items (duplicates skipped).');
+          }catch(err){alert('Failed to import: ' + err.message)}
+        };
+        reader.readAsText(file);
+      }
+
+      function setFilter(f){ filter = f; [$btnAll,$btnActive,$btnCompleted].forEach(b=>b.classList.remove('active')); if(f==='all') $btnAll.classList.add('active'); if(f==='active') $btnActive.classList.add('active'); if(f==='completed') $btnCompleted.classList.add('active'); render(); }
+
+      function render(){
+        const q = $search.value.trim().toLowerCase();
+        const visible = todos.filter(t=>{
+          if(filter==='active' && t.done) return false;
+          if(filter==='completed' && !t.done) return false;
+          if(q){ if(!(t.title.toLowerCase().includes(q) || (t.description||'').toLowerCase().includes(q))) return false; }
+          return true;
+        });
+        $list.innerHTML = visible.length===0 ? '<div class="card" style="padding:14px;border-radius:8px">No todos — try adding one!</div>' : visible.map(t=>{
+          return `
+            <div class="item ${t.done? 'done':''}" data-id="${t.id}">
+              <input type="checkbox" ${t.done? 'checked':''} class="cb" style="margin-top:6px" />
+              <div class="meta">
+                <h3>${escapeHtml(t.title)}</h3>
+                ${t.description? `<div class="muted small">${escapeHtml(t.description)}</div>`: ''}
+                <div class="muted small">Created: ${new Date(t.createdAt).toLocaleString()}</div>
+              </div>
+              <div class="controls">
+                <button data-action="edit">Edit</button>
+                <button data-action="del">Delete</button>
+              </div>
+            </div>
+          `
+        }).join('');
+
+        // attach listeners
+        $list.querySelectorAll('.item').forEach(node => {
+          const id = node.getAttribute('data-id');
+          node.querySelector('.cb').addEventListener('change', ()=> toggleDone(id));
+          node.querySelector('button[data-action="edit"]').addEventListener('click', ()=> startEdit(id));
+          node.querySelector('button[data-action="del"]').addEventListener('click', ()=> removeTodo(id));
+        });
+      }
+
+      function escapeHtml(s){ return (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+      // events
+      $form.addEventListener('submit', (e)=>{ e.preventDefault(); addTodo($title.value, $desc.value); $title.value=''; $desc.value=''; $title.focus(); });
+      $search.addEventListener('input', ()=> render());
+      $btnAll.addEventListener('click', ()=> setFilter('all'));
+      $btnActive.addEventListener('click', ()=> setFilter('active'));
+      $btnCompleted.addEventListener('click', ()=> setFilter('completed'));
+      $export.addEventListener('click', exportJSON);
+      $importFile.addEventListener('change', (e)=> importJSON(e.target.files[0]));
+      $clear.addEventListener('click', clearAll);
+
+      // initial load & render
+      load(); render();
+
+      // autosave note: we save on every action that mutates todos, so no interval required
+
+      // expose to global for debugging (optional)
+      window._todoApp = {getTodos: ()=>todos, save, load};
+    })();
+  </script>
+</body>
+</html>
